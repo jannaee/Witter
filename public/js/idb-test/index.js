@@ -1,40 +1,101 @@
 import idb from 'idb';
 
-var dbPromise = idb.open('test-db', 1, function(upgradeDb) {
-  //dbPromise will return a database object
-  var keyValStore = upgradeDb.createObjectStore('keyval');
-  keyValStore.put("world", "hello");
+var dbPromise = idb.open('test-db', 4, function(upgradeDb) {//upgradeDb is the upgrade callback resolves to a promise DB
+  switch(upgradeDb.oldVersion) {//no breaks so that we have fallthrough
+    case 0:
+      var keyValStore = upgradeDb.createObjectStore('keyval'); //creation of a store named keyval
+      keyValStore.put("world", "hello");//placing value of world with key into that store
+    case 1:
+      upgradeDb.createObjectStore('people', { keyPath: 'name' });//creating another store of people with a point of reference named 'name' that we will pivot around for querying
+    case 2:
+      var peopleStore = upgradeDb.transaction.objectStore('people');//accessing the people store by first creating a transaction
+      peopleStore.createIndex('animal', 'favoriteAnimal');//basically saying i want a column of animals based off of the favoriteAnimals datapoint
+    case 3:
+      peopleStore = upgradeDb.transaction.objectStore('people');//accessing the people store again with a transaction and creating a column of age based off of age that is pivoting around 'name'
+      peopleStore.createIndex('age', 'age'); //https://developer.mozilla.org/en-US/docs/Web/API/IDBObjectStore/createIndex
+  }
+  // TODO: create an index on 'people' named 'age', ordered by 'age'
 });
 
-
-//if you want to read from the database you have to set up a transaction
 // read "hello" in "keyval"
 dbPromise.then(function(db) {
   var tx = db.transaction('keyval');
   var keyValStore = tx.objectStore('keyval');
-  return keyValStore.get('hello'); //.get passes in the key that you are interested in, or in this case hello
+  return keyValStore.get('hello');
 }).then(function(val) {
-  console.log('value of "hello" is:', val);
+  console.log('The value of "hello" is:', val);
 });
 
 // set "foo" to be "bar" in "keyval"
-dbPromise.then(function(db) {//adding another value to the object store
-  var tx = db.transaction('keyval', 'readwrite');//tx is short for transaction additionally to make changes to an existing object store, the transaction must be in readwrite mode. 
+dbPromise.then(function(db) {
+  var tx = db.transaction('keyval', 'readwrite');
   var keyValStore = tx.objectStore('keyval');
-  keyValStore.put('bar', 'foo');//put returns a promise, allowing to not be stuck in the middle of a transaction
+  keyValStore.put('bar', 'foo');
   return tx.complete;
-}).then(function() {//this allows you to log a success message if everything goes as planned
-  console.log('Added foo:bar to keyval');//
+}).then(function() {
+  console.log('Added foo:bar to keyval');
 });
 
 dbPromise.then(function(db) {
-  // TODO: in the keyval store, set
-  // "favoriteAnimal" to your favourite animal
-  // eg "cat" or "dog"
   var tx = db.transaction('keyval', 'readwrite');
   var keyValStore = tx.objectStore('keyval');
-  keyValStore.put('dog', 'favoriteAnimal');
-  return tx.complete;//this is a promise that fullfills if the entire transaction completes and rejects if fails
-}).then(function(val){
-  console.log('Favorite Animal is:', val);
+  keyValStore.put('cat', 'favoriteAnimal');
+  return tx.complete;
+}).then(function() {
+  console.log('Added favoriteAnimal:cat to keyval');
+});
+
+// add people to "people"
+dbPromise.then(function(db) {
+  var tx = db.transaction('people', 'readwrite');
+  var peopleStore = tx.objectStore('people');
+
+  peopleStore.put({
+    name: 'Sam Munoz',
+    age: 25,
+    favoriteAnimal: 'dog'
+  });
+
+  peopleStore.put({
+    name: 'Susan Keller',
+    age: 34,
+    favoriteAnimal: 'cat'
+  });
+
+  peopleStore.put({
+    name: 'Lillie Wolfe',
+    age: 28,
+    favoriteAnimal: 'dog'
+  });
+
+  peopleStore.put({
+    name: 'Marc Stone',
+    age: 39,
+    favoriteAnimal: 'cat'
+  });
+
+  return tx.complete;
+}).then(function() {
+  console.log('People added');
+});
+
+// list all cat people
+dbPromise.then(function(db) {
+  var tx = db.transaction('people');
+  var peopleStore = tx.objectStore('people');
+  var animalIndex = peopleStore.index('animal');
+
+  return animalIndex.getAll('cat');
+}).then(function(people) {
+  console.log('Cat people:', people);
+});
+
+// TODO: console.log all people ordered by age
+dbPromise.then((db) =>{
+  var tx = db.transaction('people');
+  var peopleStore = tx.objectStore('people');
+  var ageIndex = peopleStore.index('age');
+  return ageIndex.getAll();
+}).then((people) => {
+  console.log('People'+ people);
 });
