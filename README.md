@@ -1,8 +1,6 @@
 # Wittr
 
-This is a silly little demo app for an offline-first course.
-
-You could run the app either using machine dependnecies, or using docker
+My practice files for an offline first approach web application. Original project was forked from jakearchibald wittr app with Udacity.
 
 ## Running using local machine
 
